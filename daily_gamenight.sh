@@ -24,6 +24,15 @@ BACKUP_DIR="${BACKUP_DIR:-/home/ubuntu/backups}/daily"
 mkdir -p "$LOG_DIR" "$BACKUP_DIR"
 LOG_FILE="$LOG_DIR/daily_gamenight.log"
 
+# Notification helper (uses pushover_notify.sh from repo if available)
+notify() {
+  if [ -x "$SCRIPT_DIR/pushover_notify.sh" ]; then
+    "$SCRIPT_DIR/pushover_notify.sh" -t "$1" -m "$2" --priority "${3:-1}" || true
+  else
+    echo "$(date +%F_%H%M) - notify: $1 - $2" | tee -a "$LOG_FILE"
+  fi
+}
+
 TIMESTAMP=$(date +%F_%H%M)
 DB_NAME="gamenight"
 DUMP_FILE="$BACKUP_DIR/${DB_NAME}_${TIMESTAMP}.sql"
@@ -39,7 +48,7 @@ if [ -z "$DB_PASS" ]; then
 fi
 
 echo "[${TIMESTAMP}] [DAILY] Dumping $DB_NAME to $DUMP_FILE" | tee -a "$LOG_FILE"
-mysqldump -u "${DB_USER:-root}" -p"$DB_PASS" "$DB_NAME" > "$DUMP_FILE" 2>>"$LOG_FILE" || { echo "mysqldump failed" | tee -a "$LOG_FILE"; rm -f "$DUMP_FILE"; exit 2; }
+mysqldump -u "${DB_USER:-root}" -p"$DB_PASS" "$DB_NAME" > "$DUMP_FILE" 2>>"$LOG_FILE" || { echo "mysqldump failed" | tee -a "$LOG_FILE"; rm -f "$DUMP_FILE"; notify "Daily backup failed" "mysqldump failed for $DB_NAME on $(hostname) at $TIMESTAMP" 1; exit 2; }
 
 gzip -9 "$DUMP_FILE"
 
@@ -52,7 +61,11 @@ else
 fi
 
 echo "[${TIMESTAMP}] [S3] Uploading $GZ_FILE to $S3_DEST/" | tee -a "$LOG_FILE"
-aws s3 cp "$GZ_FILE" "$S3_DEST/" 2>&1 | tee -a "$LOG_FILE" || { echo "S3 upload failed" | tee -a "$LOG_FILE"; exit 3; }
+if ! aws s3 cp "$GZ_FILE" "$S3_DEST/" 2>&1 | tee -a "$LOG_FILE"; then
+  echo "S3 upload failed" | tee -a "$LOG_FILE"
+  notify "Daily backup upload failed" "Failed to upload $GZ_FILE to $S3_DEST on $(hostname) at $TIMESTAMP" 1
+  exit 3
+fi
 
 # Keep only last 7 daily backups
 echo "[${TIMESTAMP}] [CLEANUP] Rotating daily backups (keep 7)" | tee -a "$LOG_FILE"
