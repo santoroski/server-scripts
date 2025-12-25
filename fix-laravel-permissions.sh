@@ -16,6 +16,24 @@ WEB_GROUP="www-data"
 BASE_PATH="/var/www/laravel"
 APPS=("gamenight" "tools" "microblog" "cozy")
 
+# Safety switches
+# If your Laravel apps use the default file-based session driver, clearing
+# storage/framework/sessions will log users out.
+CLEAR_SESSIONS=0
+
+for arg in "$@"; do
+    case "$arg" in
+        --clear-sessions)
+            CLEAR_SESSIONS=1
+            ;;
+        -h|--help)
+            echo "Usage: $0 [--clear-sessions]"
+            echo "  --clear-sessions  Also clears storage/framework/sessions (logs users out if using file sessions)"
+            exit 0
+            ;;
+    esac
+done
+
 echo -e "${YELLOW}=== Laravel Permission Fix Script ===${NC}"
 echo "Fixing permissions for: ${APPS[@]}"
 echo "App owner: $APP_USER"
@@ -48,8 +66,12 @@ fix_app_permissions() {
         # Clean and recreate framework subdirs
         echo "  🧹 Resetting storage/framework subdirs..."
         rm -rf storage/framework/cache/data/* || true
-        rm -rf storage/framework/sessions/* || true
         rm -rf storage/framework/views/* || true
+
+        if [ "$CLEAR_SESSIONS" -eq 1 ]; then
+            echo "  ⚠️  Clearing sessions (may log users out)..."
+            rm -rf storage/framework/sessions/* || true
+        fi
 
         mkdir -p storage/framework/cache/data
         mkdir -p storage/framework/sessions
