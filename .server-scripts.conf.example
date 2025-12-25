@@ -6,6 +6,11 @@ DB_PASS="REPLACE_WITH_MYSQL_ROOT_PASSWORD"
 # S3 settings
 S3_BUCKET="gamenight-cc-my-sql-backups"
 
+# Pushover settings (optional)
+# Get these from https://pushover.net/apps and your Pushover user key
+PUSHOVER_API_TOKEN="REPLACE_WITH_PUSHOVER_APP_TOKEN"
+PUSHOVER_USER_KEY="REPLACE_WITH_PUSHOVER_USER_KEY"
+
 BACKUP_DIR="/home/ubuntu/backups"
 LOG_DIR="/home/ubuntu/logs"
 AWS_PROFILE="default"
