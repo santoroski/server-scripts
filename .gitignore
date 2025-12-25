@@ -1,0 +1,21 @@
+# Ignore backups and logs
+backups/
+backups/*
+/home/ubuntu/backups/
+/home/ubuntu/backups/*
+logs/
+*.sql
+*.sql.gz
+
+# Ignore sensitive files
+.server-scripts.conf
+.env
+.aws/credentials
+
+# System files
+.DS_Store
+*.swp
+
+# Optional
+node_modules/
+vendor/
