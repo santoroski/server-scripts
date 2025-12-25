@@ -67,6 +67,18 @@ tail -n 200 /home/blogger/trim_laravel_logs.log
 - Avoid rebooting automatically from within a maintenance script; require an explicit flag or sentinel file to reboot. ♻️
 - Add monitoring/alerts for failed backups (e.g., CloudWatch, simple cron-email, or a small healthcheck). 🚨
 
+## Healthcheck
+A lightweight `healthcheck.sh` script is included. It checks:
+- That recent **daily** and **weekly** backups exist in S3 and are within acceptable age thresholds
+- Root disk usage against a threshold
+- Presence and activity of critical services (MySQL, nginx) if installed
+
+Suggested cron (every 15 minutes):
+```cron
+*/15 * * * * /home/ubuntu/server-scripts/healthcheck.sh >> /home/ubuntu/logs/healthcheck.log 2>&1
+```
+If a check fails the script exits non-zero and sends a Pushover alert (if configured).
+
 ## Notifications (Pushover)
 We provide a small wrapper `pushover_notify.sh` to send alerts via Pushover. Configure your Pushover app token and user key in `~/.server-scripts.conf`:
 

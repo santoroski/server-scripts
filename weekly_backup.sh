@@ -74,3 +74,6 @@ for DB_NAME in "${DB_NAMES[@]}"; do
 done
 
 log "Weekly backup finished"
+
+# Send a success summary notification
+notify "Weekly backup completed" "Backups completed for: ${DB_NAMES[*]}. Uploaded to ${S3_DEST}/ on $(hostname) at ${TIMESTAMP}" 0
