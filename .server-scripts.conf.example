@@ -5,7 +5,6 @@ DB_PASS="REPLACE_WITH_MYSQL_ROOT_PASSWORD"
 
 # S3 settings
 S3_BUCKET="gamenight-cc-my-sql-backups"
-S3_BUCKET_DAILY="s3://gamenight-cc-my-sql-backups/daily"
 
 BACKUP_DIR="/home/ubuntu/backups"
 LOG_DIR="/home/ubuntu/logs"

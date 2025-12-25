@@ -7,7 +7,7 @@ Maintenance scripts for the server: weekly maintenance and daily `gamenight` bac
    ```bash
    cp .server-scripts.conf.example ~/.server-scripts.conf
    chmod 600 ~/.server-scripts.conf
-   # then edit ~/.server-scripts.conf and set DB_PASS, S3_BUCKET_DAILY, etc.
+   # then edit ~/.server-scripts.conf and set DB_PASS, S3_BUCKET, etc.
    ```
 2. Test the daily backup manually:
    ```bash

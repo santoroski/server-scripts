@@ -43,13 +43,11 @@ mysqldump -u "${DB_USER:-root}" -p"$DB_PASS" "$DB_NAME" > "$DUMP_FILE" 2>>"$LOG_
 
 gzip -9 "$DUMP_FILE"
 
-# Determine S3 destination
-if [ -n "$S3_BUCKET_DAILY" ]; then
-  S3_DEST="$S3_BUCKET_DAILY"
-elif [ -n "$S3_BUCKET" ]; then
+# Determine S3 destination (use S3_BUCKET; daily objects go under /daily/)
+if [ -n "$S3_BUCKET" ]; then
   S3_DEST="s3://$S3_BUCKET/daily"
 else
-  echo "ERROR: No S3 destination configured (S3_BUCKET_DAILY or S3_BUCKET)." | tee -a "$LOG_FILE"
+  echo "ERROR: No S3 destination configured (set S3_BUCKET in config)." | tee -a "$LOG_FILE"
   exit 1
 fi
 
