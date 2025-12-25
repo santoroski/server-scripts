@@ -51,27 +51,14 @@ log "[APT] Updating and upgrading packages..."
 apt-get update 2>&1 | tee -a "$LOG_FILE"
 apt-get upgrade -y 2>&1 | tee -a "$LOG_FILE"
 
-# === MYSQL BACKUPS ===
-# Using %F_%H%M adds the time (e.g., 2025-12-08_1530) so files never overwrite
-TIMESTAMP=$(date +%F_%H%M)
+# === WEEKLY BACKUP (delegated) ===
+log "[BACKUP] Delegating database backups to weekly_backup.sh..."
+if [ -x "$SCRIPT_DIR/weekly_backup.sh" ]; then
+    "$SCRIPT_DIR/weekly_backup.sh" 2>&1 | tee -a "$LOG_FILE"
+else
+    log "weekly_backup.sh not found or not executable; skipping weekly DB backups"
+fi
 
-for DB_NAME in "${DB_NAMES[@]}"; do
-    log "[MYSQL] Dumping database $DB_NAME..."
-    mysqldump -u "$DB_USER" -p"$DB_PASS" "$DB_NAME" > "$BACKUP_DIR/${DB_NAME}_${TIMESTAMP}.sql" 2>>"$LOG_FILE"
-done
-
-# === UPLOAD BACKUPS TO S3 ===
-# We switch to 'sync' (without --delete).
-# This is smarter than 'cp': it only uploads NEW files. It won't re-upload old ones.
-log "[S3] Syncing new backups to S3 bucket: $S3_BUCKET..."
-aws s3 sync "$BACKUP_DIR" "s3://$S3_BUCKET/" 2>&1 | tee -a "$LOG_FILE"
-
-# === CLEANUP LOCAL BACKUPS ===
-# This logic still works perfectly with the new timestamps
-log "[CLEANUP] Removing old local backups (keeping latest 2)..."
-for DB_NAME in "${DB_NAMES[@]}"; do
-    ls -tp "$BACKUP_DIR/${DB_NAME}_"*.sql 2>/dev/null | grep -v '/$' | tail -n +3 | xargs -r rm --
-done
 
 # === LARAVEL MAINTENANCE ===
 for APP_PATH in "${LARAVEL_APPS[@]}"; do
@@ -93,6 +80,10 @@ ls -1t "$LOG_DIR"/weekly_maintenance.log* | tail -n +$((MAX_LOGS+1)) | xargs -r 
 
 log "Weekly script finished"
 
-
-log "[SYSTEM] Rebooting server..."
-sudo reboot
+# Reboot only when explicitly allowed (pass --reboot or create /home/ubuntu/ALLOW_REBOOT)
+if [ "$1" = "--reboot" ] || [ -f /home/ubuntu/ALLOW_REBOOT ]; then
+  log "[SYSTEM] Rebooting server..."
+  sudo reboot
+else
+  log "[SYSTEM] Reboot skipped (no --reboot and /home/ubuntu/ALLOW_REBOOT not present)"
+fi
