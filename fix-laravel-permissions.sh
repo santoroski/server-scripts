@@ -21,18 +21,37 @@ APPS=("gamenight" "tools" "microblog" "cozy")
 # storage/framework/sessions will log users out.
 CLEAR_SESSIONS=0
 
+DRY_RUN=0
+TARGET_APP=""
 for arg in "$@"; do
     case "$arg" in
         --clear-sessions)
             CLEAR_SESSIONS=1
             ;;
+        --dry-run)
+            DRY_RUN=1
+            ;;
+        --app=*)
+            TARGET_APP="${arg#*=}"
+            ;;
         -h|--help)
-            echo "Usage: $0 [--clear-sessions]"
+            echo "Usage: $0 [--clear-sessions] [--dry-run] [--app=<name>]"
             echo "  --clear-sessions  Also clears storage/framework/sessions (logs users out if using file sessions)"
+            echo "  --dry-run         Show what would be done without making changes"
+            echo "  --app=<name>      Run only for the named app (e.g. --app=cozy)"
             exit 0
             ;;
     esac
 done
+
+run_cmd() {
+    # helper: show commands in dry-run, otherwise execute
+    if [ "$DRY_RUN" -eq 1 ]; then
+        echo "DRY-RUN: $*"
+    else
+        eval "$@"
+    fi
+}
 
 echo -e "${YELLOW}=== Laravel Permission Fix Script ===${NC}"
 echo "Fixing permissions for: ${APPS[@]}"
@@ -53,32 +72,42 @@ fix_app_permissions() {
 
     cd "$app_path"
 
-    # Top-level: app user owns code, group is www-data
-    echo "  🔧 Setting code ownership..."
-    chown -R $APP_USER:$WEB_GROUP .
+    # helper wrapper for safety
+    _run() { run_cmd "$1"; }
 
-    # Runtime dirs: web user owns storage & cache
+    # OPTIMIZATION 1: Only fix ownership on root files, not recursive (less IO)
+    echo "  🔧 Setting base ownership (non-recursive)..."
+    _run "chown $APP_USER:$WEB_GROUP ." || true
+
+    # If you MUST recurse code, consider limiting to specific dirs to avoid node_modules / vendor
+    # Example: chown -R $APP_USER:$WEB_GROUP ./app ./config ./public ./resources ./routes || true
+
+    # Runtime dirs: web user owns storage & cache (recursive here is expected)
     if [ -d "storage" ] && [ -d "bootstrap/cache" ]; then
         echo "  🔧 Setting storage + cache ownership..."
-        chown -R $WEB_USER:$WEB_GROUP storage bootstrap/cache
-        chmod -R 775 storage bootstrap/cache
+        _run "chown -R $WEB_USER:$WEB_GROUP storage bootstrap/cache" || true
+        _run "chmod -R 775 storage bootstrap/cache" || true
 
         # Clean and recreate framework subdirs
         echo "  🧹 Resetting storage/framework subdirs..."
-        rm -rf storage/framework/cache/data/* || true
-        rm -rf storage/framework/views/* || true
+        # Use find -delete to avoid shell glob expansion and memory spikes
+        _run "find storage/framework/cache/data -mindepth 1 -delete 2>/dev/null" || true
+        _run "find storage/framework/views -mindepth 1 -delete 2>/dev/null" || true
 
         if [ "$CLEAR_SESSIONS" -eq 1 ]; then
             echo "  ⚠️  Clearing sessions (may log users out)..."
-            rm -rf storage/framework/sessions/* || true
+            # Use find -delete for sessions as well (opt-in only)
+            _run "find storage/framework/sessions -mindepth 1 -delete 2>/dev/null" || true
         fi
 
-        mkdir -p storage/framework/cache/data
-        mkdir -p storage/framework/sessions
-        mkdir -p storage/framework/views
+        # Re-ensure structure exists (in case find was too aggressive)
+        _run "mkdir -p storage/framework/cache/data" || true
+        _run "mkdir -p storage/framework/sessions" || true
+        _run "mkdir -p storage/framework/views" || true
 
-        chown -R $WEB_USER:$WEB_GROUP storage/framework
-        chmod -R 775 storage/framework
+        # Ensure framework dir is owned & writable
+        _run "chown -R $WEB_USER:$WEB_GROUP storage/framework" || true
+        _run "chmod -R 775 storage/framework" || true
     else
         echo -e "${RED}❌ storage/ or bootstrap/cache missing in $app${NC}"
     fi
@@ -86,8 +115,8 @@ fix_app_permissions() {
     echo -e "  ${GREEN}✅ $app permissions fixed${NC}\n"
 }
 
-# Ensure root
-if [ "$EUID" -ne 0 ]; then
+# Ensure root (unless running in dry-run mode)
+if [ "$DRY_RUN" -ne 1 ] && [ "$EUID" -ne 0 ]; then
     echo -e "${RED}❌ Please run as root (use sudo)${NC}"
     exit 1
 fi
@@ -101,9 +130,14 @@ for u in "$APP_USER" "$WEB_USER"; do
 done
 
 # Process apps
-for app in "${APPS[@]}"; do
-    fix_app_permissions "$app"
-done
+if [ -n "$TARGET_APP" ]; then
+    echo "Running for single app: $TARGET_APP"
+    fix_app_permissions "$TARGET_APP"
+else
+    for app in "${APPS[@]}"; do
+        fix_app_permissions "$app"
+    done
+fi
 
 echo -e "${GREEN}🎉 All Laravel apps permissions fixed!${NC}"
 echo ""
