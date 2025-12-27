@@ -5,7 +5,7 @@ set -e
 TIMESTAMP=$(date +%F)
 BUCKET="s3://gamenight-cc-my-sql-backups"
 BACKUP_DIR="/tmp/server_backup_$TIMESTAMP"
-APP_ROOT="/var/www"
+APP_ROOT="/var/www/laravel"
 PROJECTS=("gamenight" "microblog" "tools" "cozy")
 
 # Logging function
