@@ -1,6 +1,11 @@
 #!/bin/bash
 set -e
 
+# Cron compatibility (ensure AWS CLI checks /home/ubuntu for creds)
+export HOME=/home/ubuntu
+# Optional: Ensure /usr/local/bin etc is in path if needed, usually passed by cron or shell
+export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+
 # Configuration
 TIMESTAMP=$(date +%F)
 BUCKET="s3://gamenight-cc-my-sql-backups"
@@ -89,7 +94,9 @@ done
 # SHIP TO S3
 log "Uploading to S3..."
 # Compressing the entire backup directory
-tar -czf - -C /tmp "server_backup_$TIMESTAMP" | aws s3 cp - "$BUCKET/$TIMESTAMP-configs-bundle.tar.gz"
+# Using Day of Week (e.g. "Monday", "Tuesday") to keep a rolling 7-day backup and save space.
+DAY_OF_WEEK=$(date +%A)
+tar -czf - -C /tmp "server_backup_$TIMESTAMP" | aws s3 cp - "$BUCKET/daily-configs-$DAY_OF_WEEK.tar.gz"
 
 # CLEANUP
 log "Cleaning up..."
