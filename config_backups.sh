@@ -5,7 +5,8 @@ set -e
 TIMESTAMP=$(date +%F)
 BUCKET="s3://gamenight-cc-my-sql-backups"
 BACKUP_DIR="/tmp/server_backup_$TIMESTAMP"
-APP_DIR="/var/www/html"
+APP_ROOT="/var/www"
+PROJECTS=("gamenight" "microblog" "tools" "cozy")
 
 # Logging function
 log() {
@@ -57,19 +58,33 @@ fi
 log "Backing up App State..."
 mkdir -p "$BACKUP_DIR/app_data"
 
-if [ -f "$APP_DIR/.env" ]; then
-    cp "$APP_DIR/.env" "$BACKUP_DIR/app_data/env_production"
-    log "Backed up .env file."
-else
-    log "Warning: .env file not found at $APP_DIR/.env"
-fi
+for PROJECT in "${PROJECTS[@]}"; do
+    PROJECT_DIR="$APP_ROOT/$PROJECT"
+    PROJECT_BACKUP_DIR="$BACKUP_DIR/app_data/$PROJECT"
+    
+    log "Processing project: $PROJECT"
+    
+    if [ ! -d "$PROJECT_DIR" ]; then
+        log "Warning: Project directory $PROJECT_DIR not found. Skipping."
+        continue
+    fi
 
-if [ -d "$APP_DIR/storage" ]; then
-    tar -czf "$BACKUP_DIR/app_data/storage_dir.tar.gz" -C "$APP_DIR" storage
-    log "Backed up storage directory."
-else
-    log "Warning: storage directory not found at $APP_DIR/storage"
-fi
+    mkdir -p "$PROJECT_BACKUP_DIR"
+
+    if [ -f "$PROJECT_DIR/.env" ]; then
+        cp "$PROJECT_DIR/.env" "$PROJECT_BACKUP_DIR/.env"
+        log "  Backed up .env file."
+    else
+        log "  Warning: .env file not found at $PROJECT_DIR/.env"
+    fi
+
+    if [ -d "$PROJECT_DIR/storage" ]; then
+        tar -czf "$PROJECT_BACKUP_DIR/storage_dir.tar.gz" -C "$PROJECT_DIR" storage
+        log "  Backed up storage directory."
+    else
+        log "  Warning: storage directory not found at $PROJECT_DIR/storage"
+    fi
+done
 
 # SHIP TO S3
 log "Uploading to S3..."
